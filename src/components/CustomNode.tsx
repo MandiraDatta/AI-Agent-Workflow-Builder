@@ -1,14 +1,31 @@
 "use client";
 
 import { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeProps, type Node } from '@xyflow/react';
 import { 
   Bot, Webhook, FileJson, GitBranch, ShieldCheck, 
   Bell, Database, Play, CheckCircle2, Clock, XCircle, PauseCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 
-const iconMap: Record<string, any> = {
+export type CustomNodeData = {
+  label?: string;
+  description?: string;
+  icon?: string;
+  category?: string;
+  status?: string;
+  type?: string;
+  approvedBy?: string;
+  currentUserRole?: string;
+  id?: string;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  [key: string]: unknown;
+};
+
+export type CustomNodeType = Node<CustomNodeData>;
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   webhook: Webhook,
   llm: Bot,
   http: FileJson,
@@ -26,10 +43,13 @@ const colorMap: Record<string, { bg: string; text: string; border: string }> = {
   logic: { bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30' },
 };
 
-export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) => {
-  const Icon = iconMap[data.icon as string] || FileJson;
-  const colors = colorMap[data.category as string] || colorMap.action;
-  const status = data.status as string | undefined;
+export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps<CustomNodeType>) => {
+  const Icon = iconMap[data.icon || ''] || FileJson;
+  const colors = colorMap[data.category || ''] || colorMap.action;
+  const status = data.status;
+  const nodeType = data.type;
+  const approvedBy = data.approvedBy;
+  const currentUserRole = data.currentUserRole;
 
   return (
     <div 
@@ -44,8 +64,8 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
           <Icon className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <div className="text-sm font-semibold text-[#F5F5F5]">{data.label as string}</div>
-          <div className="text-xs text-zinc-400">{data.description as string}</div>
+          <div className="text-sm font-semibold text-[#F5F5F5]">{data.label}</div>
+          <div className="text-xs text-zinc-400">{data.description}</div>
         </div>
       </div>
 
@@ -71,25 +91,25 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
       )}
 
       {/* Approval specific UI */}
-      {status === 'paused' && data.type === 'approval' && (
+      {status === 'paused' && nodeType === 'approval' && (
         <div className="p-4 bg-yellow-500/10 border-t border-yellow-500/20 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-yellow-500/50"></div>
           <p className="text-sm text-[#F5F5F5] font-semibold mb-1">⏸ Workflow Paused</p>
           <p className="text-xs text-yellow-400/80 mb-3">Waiting for approval</p>
           
           <div className="text-left text-xs text-zinc-300 bg-[#0A0710]/50 p-2 rounded border border-[#2D273F] mb-3">
-            <p className="font-semibold text-zinc-100 mb-1">{data.label as string}</p>
-            <p className="text-zinc-400 mb-2">{data.description as string}</p>
+            <p className="font-semibold text-zinc-100 mb-1">{data.label}</p>
+            <p className="text-zinc-400 mb-2">{data.description}</p>
             <p>Order: <span className="text-white">#1234</span></p>
             <p>Amount: <span className="text-white">₹2,500</span></p>
           </div>
 
-          {(data.currentUserRole === 'owner' || data.currentUserRole === 'editor') ? (
+          {(currentUserRole === 'owner' || currentUserRole === 'editor') ? (
             <div className="flex gap-2">
               <button 
                 onClick={() => {
-                  const onReject = data.onReject as (id: string) => void;
-                  onReject?.(data.id as string);
+                  const onReject = data.onReject;
+                  onReject?.(data.id || '');
                 }}
                 className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold rounded transition-colors border border-zinc-700"
               >
@@ -97,8 +117,8 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
               </button>
               <button 
                 onClick={() => {
-                  const onApprove = data.onApprove as (id: string) => void;
-                  onApprove?.(data.id as string);
+                  const onApprove = data.onApprove;
+                  onApprove?.(data.id || '');
                 }}
                 className="flex-1 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold rounded transition-colors"
               >
@@ -107,7 +127,7 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
             </div>
           ) : (
             <div className="p-2 bg-zinc-900/50 rounded border border-zinc-800/50 text-xs text-zinc-500">
-              <p>You don't have permission to approve this step.</p>
+              <p>You don&apos;t have permission to approve this step.</p>
               {/* Frontend-only role behavior for now. Real authorization will be enforced by Hasura Action/backend. Hiding this button is not a security mechanism. */}
             </div>
           )}
@@ -115,9 +135,9 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
       )}
 
       {/* Show approval info if completed or failed */}
-      {(status === 'completed' || status === 'failed') && data.type === 'approval' && data.approvedBy && (
+      {(status === 'completed' || status === 'failed') && nodeType === 'approval' && Boolean(approvedBy) && (
         <div className={clsx("p-2 border-t text-xs font-medium", status === 'completed' ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400")}>
-          {status === 'completed' ? `✓ Approved by ${data.approvedBy}` : `✗ Rejected by ${data.approvedBy}`}
+          {status === 'completed' ? `✓ Approved by ${approvedBy}` : `✗ Rejected by ${approvedBy}`}
         </div>
       )}
 
@@ -138,3 +158,4 @@ export const CustomNode = memo(({ data, isConnectable, selected }: NodeProps) =>
 });
 
 CustomNode.displayName = 'CustomNode';
+

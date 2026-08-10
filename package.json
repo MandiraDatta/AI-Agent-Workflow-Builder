@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@nhost/nhost-js": "^4.8.0",
     "@xyflow/react": "^12.11.2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.31.0",
